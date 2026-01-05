@@ -34,6 +34,7 @@ resource "oci_core_instance" "k3s_server" {
   create_vnic_details {
     subnet_id        = oci_core_subnet.public_subnet.id
     assign_public_ip = true
+    nsg_ids          = [oci_core_network_security_group.k3s_master_nsg.id]
   }
 
   metadata = {

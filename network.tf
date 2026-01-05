@@ -47,16 +47,6 @@ resource "oci_core_security_list" "public_sl" {
     }
   }
 
-  # K3s API Server
-  ingress_security_rules {
-    protocol = "6" # TCP
-    source   = var.allowed_ip
-    tcp_options {
-      min = 6443
-      max = 6443
-    }
-  }
-
   # ICMP (Ping)
   ingress_security_rules {
     protocol = "1"
@@ -72,4 +62,28 @@ resource "oci_core_subnet" "public_subnet" {
   display_name      = "public-subnet"
   route_table_id    = oci_core_route_table.public_rt.id
   security_list_ids = [oci_core_security_list.public_sl.id]
+}
+
+# Instance NSG
+resource "oci_core_network_security_group" "k3s_master_nsg" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "k3s-master-security-group"
+}
+
+# Network rule of NSG
+resource "oci_core_network_security_group_security_rule" "k3s_api_rule" {
+  network_security_group_id = oci_core_network_security_group.k3s_master_nsg.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  source      = var.allowed_ip
+  source_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
 }
