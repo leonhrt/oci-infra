@@ -15,7 +15,7 @@ data "oci_core_images" "ubuntu_arm" {
 
 # Main instance config
 resource "oci_core_instance" "k3s_server" {
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[1].name
   compartment_id      = oci_identity_compartment.sandbox.id
   display_name        = "k3s-server"
   shape               = local.instance_shape
