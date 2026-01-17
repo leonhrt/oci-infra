@@ -11,6 +11,8 @@ resource "oci_identity_policy" "k8s_vault_access" {
   description    = "Allow k8s nodes to read secrets from vault"
 
   statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.k8s_nodes.name} to read vaults in compartment ${oci_identity_compartment.sandbox.name}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.k8s_nodes.name} to read secrets in compartment ${oci_identity_compartment.sandbox.name}",
     "Allow dynamic-group ${oci_identity_dynamic_group.k8s_nodes.name} to read secret-bundles in compartment ${oci_identity_compartment.sandbox.name}"
   ]
 }
