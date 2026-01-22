@@ -126,12 +126,6 @@ resource "oci_core_security_list" "mysql_private_sl" {
   compartment_id = oci_identity_compartment.sandbox.id
   vcn_id         = oci_core_vcn.main_vcn.id
   display_name   = "mysql-private-subnet-sl"
-
-  egress_security_rules {
-    destination      = "0.0.0.0/0"
-    destination_type = "CIDR_BLOCK"
-    protocol         = "all"
-  }
 }
 
 # Private subnet for DB
@@ -156,7 +150,7 @@ resource "oci_bastion_bastion" "bastion" {
   client_cidr_block_allow_list = [var.allowed_ip]
 }
 
-# NSG DB
+# NSG MySQL DB
 resource "oci_core_network_security_group" "mysql_nsg" {
   compartment_id = oci_identity_compartment.sandbox.id
   vcn_id         = oci_core_vcn.main_vcn.id
@@ -175,7 +169,7 @@ data "oci_bastion_bastion" "mysql_bastion" {
   bastion_id = data.oci_bastion_bastions.search_mysql_bastions.bastions[0].id
 }
 
-# NSG Ingress Rule for K3s
+# NSG Ingress Rule for Bastion
 resource "oci_core_network_security_group_security_rule" "mysql_nsg_bastion_ingress_rule" {
   network_security_group_id = oci_core_network_security_group.mysql_nsg.id
   direction                 = "INGRESS"
@@ -193,7 +187,7 @@ resource "oci_core_network_security_group_security_rule" "mysql_nsg_bastion_ingr
   }
 }
 
-# NSG Ingress Rule for Bastion
+# NSG Ingress Rule for K3s
 resource "oci_core_network_security_group_security_rule" "mysql_nsg_ingress_rule" {
   network_security_group_id = oci_core_network_security_group.mysql_nsg.id
   direction                 = "INGRESS"
