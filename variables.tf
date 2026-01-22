@@ -9,3 +9,8 @@ variable "allowed_ip" {
   description = "Allowed IP for administration"
   type        = string
 }
+
+variable "mysql_admin_username" {
+  description = "MySQL admin username"
+  type        = string
+}

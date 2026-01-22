@@ -87,3 +87,97 @@ resource "oci_core_network_security_group_security_rule" "k3s_api_rule" {
     }
   }
 }
+
+# Services from Oracle
+data "oci_core_services" "all_services" {
+  filter {
+    name   = "name"
+    values = ["All .* Services In Oracle Services Network"]
+    regex  = true
+  }
+}
+
+# Service Gateway
+resource "oci_core_service_gateway" "service_gw" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "sandbox-service-gateway"
+
+  services {
+    service_id = data.oci_core_services.all_services.services[0].id
+  }
+}
+
+# Private Route Table
+resource "oci_core_route_table" "mysql_private_rt" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "mysql-sandbox-private-rt"
+
+  route_rules {
+    destination       = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type  = "SERVICE_CIDR_BLOCK"
+    network_entity_id = oci_core_service_gateway.service_gw.id
+  }
+}
+
+# Security List Private Subnet for DB
+resource "oci_core_security_list" "mysql_private_sl" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "mysql-private-subnet-sl"
+
+  egress_security_rules {
+    destination      = "0.0.0.0/0"
+    destination_type = "CIDR_BLOCK"
+    protocol         = "all"
+  }
+}
+
+# Private subnet for DB
+resource "oci_core_subnet" "mysql_private_subnet" {
+  compartment_id             = oci_identity_compartment.sandbox.id
+  vcn_id                     = oci_core_vcn.main_vcn.id
+  cidr_block                 = "10.0.3.0/24"
+  display_name               = "mysql-private-subnet"
+  dns_label                  = "dbpriv"
+  route_table_id             = oci_core_route_table.mysql_private_rt.id
+  security_list_ids          = [oci_core_security_list.mysql_private_sl.id]
+  prohibit_public_ip_on_vnic = true
+}
+
+# NSG DB
+resource "oci_core_network_security_group" "mysql_nsg" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "mysql-nsg"
+}
+
+# NSG Ingress Rule DB
+resource "oci_core_network_security_group_security_rule" "mysql_nsg_ingress_rule" {
+  network_security_group_id = oci_core_network_security_group.mysql_nsg.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+  description               = "MySQL port from K3s instances only"
+
+  source      = oci_core_network_security_group.k3s_master_nsg.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 3306
+      max = 3306
+    }
+  }
+}
+
+# NSG Oracle Services Egress Rule DB 
+resource "oci_core_network_security_group_security_rule" "mysql_nsg_egress_services_rule" {
+  network_security_group_id = oci_core_network_security_group.mysql_nsg.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+  description               = "Allow access to Oracle Services"
+
+  destination      = data.oci_core_services.all_services.services[0].cidr_block
+  destination_type = "SERVICE_CIDR_BLOCK"
+}
