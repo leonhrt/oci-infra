@@ -6,5 +6,5 @@ locals {
   mysql_shape        = "MySQL.Free"
   mysql_storage      = 50
   mysql_display_name = "mysql-db"
-  bastion_name       = "mysql-bastion"
+  bastion_name       = "bastion"
 }

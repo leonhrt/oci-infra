@@ -140,33 +140,11 @@ resource "oci_core_subnet" "mysql_private_subnet" {
   prohibit_public_ip_on_vnic = true
 }
 
-# Bastion Host Service
-resource "oci_bastion_bastion" "bastion" {
-  compartment_id   = oci_identity_compartment.sandbox.id
-  bastion_type     = "STANDARD"
-  target_subnet_id = oci_core_subnet.mysql_private_subnet.id
-  name             = local.bastion_name
-
-  client_cidr_block_allow_list = [var.allowed_ip]
-}
-
 # NSG MySQL DB
 resource "oci_core_network_security_group" "mysql_nsg" {
   compartment_id = oci_identity_compartment.sandbox.id
   vcn_id         = oci_core_vcn.main_vcn.id
   display_name   = "mysql-nsg"
-}
-
-# Search for all bastions in compartment that are active
-data "oci_bastion_bastions" "search_mysql_bastions" {
-  compartment_id          = oci_identity_compartment.sandbox.id
-  name                    = local.bastion_name
-  bastion_lifecycle_state = "ACTIVE"
-}
-
-# Get full information of the available bastion
-data "oci_bastion_bastion" "mysql_bastion" {
-  bastion_id = data.oci_bastion_bastions.search_mysql_bastions.bastions[0].id
 }
 
 # NSG Ingress Rule for Bastion
@@ -176,7 +154,7 @@ resource "oci_core_network_security_group_security_rule" "mysql_nsg_bastion_ingr
   protocol                  = "6" # TCP
   description               = "Access for MySQL from OCI Bastion"
 
-  source      = "${data.oci_bastion_bastion.mysql_bastion.private_endpoint_ip_address}/32"
+  source      = "${oci_bastion_bastion.bastion.private_endpoint_ip_address}/32"
   source_type = "CIDR_BLOCK"
 
   tcp_options {
@@ -214,4 +192,52 @@ resource "oci_core_network_security_group_security_rule" "mysql_nsg_egress_servi
 
   destination      = data.oci_core_services.all_services.services[0].cidr_block
   destination_type = "SERVICE_CIDR_BLOCK"
+}
+
+# Bastion Route Table
+resource "oci_core_route_table" "bastion_rt" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "bastion-rt"
+}
+
+# Security List for Bastion Subnet
+resource "oci_core_security_list" "bastion_sl" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "bastion-subnet-sl"
+
+  # Allow bastion to reach MySQL
+  egress_security_rules {
+    destination = "${oci_mysql_mysql_db_system.mysql_db.ip_address}/32" # mysql_private_subnet CIDR
+    protocol    = "6"                                                   # TCP
+    description = "Allow bastion to reach MySQL"
+
+    tcp_options {
+      min = 3306
+      max = 3306
+    }
+  }
+}
+
+# Dedicated Bastion Subnet
+resource "oci_core_subnet" "bastion_subnet" {
+  compartment_id             = oci_identity_compartment.sandbox.id
+  vcn_id                     = oci_core_vcn.main_vcn.id
+  cidr_block                 = "10.0.2.0/28"
+  display_name               = "bastion-subnet"
+  dns_label                  = "bastion"
+  route_table_id             = oci_core_route_table.bastion_rt.id
+  security_list_ids          = [oci_core_security_list.bastion_sl.id]
+  prohibit_public_ip_on_vnic = true
+}
+
+# Bastion Host Service
+resource "oci_bastion_bastion" "bastion" {
+  compartment_id   = oci_identity_compartment.sandbox.id
+  bastion_type     = "STANDARD"
+  target_subnet_id = oci_core_subnet.bastion_subnet.id
+  name             = local.bastion_name
+
+  client_cidr_block_allow_list = [var.allowed_ip]
 }
