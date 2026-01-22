@@ -146,6 +146,16 @@ resource "oci_core_subnet" "mysql_private_subnet" {
   prohibit_public_ip_on_vnic = true
 }
 
+# Bastion Host Service
+resource "oci_bastion_bastion" "bastion" {
+  compartment_id   = oci_identity_compartment.sandbox.id
+  bastion_type     = "STANDARD"
+  target_subnet_id = oci_core_subnet.mysql_private_subnet.id
+  name             = local.bastion_name
+
+  client_cidr_block_allow_list = [var.allowed_ip]
+}
+
 # NSG DB
 resource "oci_core_network_security_group" "mysql_nsg" {
   compartment_id = oci_identity_compartment.sandbox.id
@@ -153,7 +163,37 @@ resource "oci_core_network_security_group" "mysql_nsg" {
   display_name   = "mysql-nsg"
 }
 
-# NSG Ingress Rule DB
+# Search for all bastions in compartment that are active
+data "oci_bastion_bastions" "search_mysql_bastions" {
+  compartment_id          = oci_identity_compartment.sandbox.id
+  name                    = local.bastion_name
+  bastion_lifecycle_state = "ACTIVE"
+}
+
+# Get full information of the available bastion
+data "oci_bastion_bastion" "mysql_bastion" {
+  bastion_id = data.oci_bastion_bastions.search_mysql_bastions.bastions[0].id
+}
+
+# NSG Ingress Rule for K3s
+resource "oci_core_network_security_group_security_rule" "mysql_nsg_bastion_ingress_rule" {
+  network_security_group_id = oci_core_network_security_group.mysql_nsg.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+  description               = "Access for MySQL from OCI Bastion"
+
+  source      = "${data.oci_bastion_bastion.mysql_bastion.private_endpoint_ip_address}/32"
+  source_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 3306
+      max = 3306
+    }
+  }
+}
+
+# NSG Ingress Rule for Bastion
 resource "oci_core_network_security_group_security_rule" "mysql_nsg_ingress_rule" {
   network_security_group_id = oci_core_network_security_group.mysql_nsg.id
   direction                 = "INGRESS"
