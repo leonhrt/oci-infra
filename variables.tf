@@ -4,6 +4,7 @@ variable "fingerprint" {}
 variable "private_key_path" {}
 variable "region" {}
 variable "ssh_public_key" {}
+variable "ts_ssh_public_key" {}
 
 variable "allowed_ip" {
   description = "Allowed IP for administration"

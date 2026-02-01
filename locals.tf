@@ -3,6 +3,7 @@ locals {
   instance_shape     = "VM.Standard.A1.Flex"
   instance_ocpus     = 4
   instance_memory    = 24
+  ts_server_shape    = "VM.Standard.E2.1.Micro"
   mysql_shape        = "MySQL.Free"
   mysql_storage      = 50
   mysql_display_name = "mysql-db"

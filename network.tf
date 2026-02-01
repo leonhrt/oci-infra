@@ -241,3 +241,72 @@ resource "oci_bastion_bastion" "bastion" {
 
   client_cidr_block_allow_list = [var.allowed_ip]
 }
+
+# Route Table
+resource "oci_core_route_table" "ts_rt" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "ts-rt"
+
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_internet_gateway.main_igw.id
+  }
+}
+
+# Security List (Firewall)
+resource "oci_core_security_list" "ts_sl" {
+  compartment_id = oci_identity_compartment.sandbox.id
+  vcn_id         = oci_core_vcn.main_vcn.id
+  display_name   = "ts-sl"
+
+  egress_security_rules {
+    destination = "0.0.0.0/0"
+    protocol    = "all"
+  }
+
+  # SSH
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = var.allowed_ip
+    tcp_options {
+      min = 22
+      max = 22
+    }
+  }
+
+  # ICMP (Ping)
+  ingress_security_rules {
+    protocol = "1"
+    source   = var.allowed_ip
+  }
+
+  ingress_security_rules {
+    protocol = "17" # UDP
+    source = "0.0.0.0/0"
+    udp_options {
+      min = 9987
+      max = 9987
+    }
+  }
+
+  ingress_security_rules {
+    protocol = "6"
+    source = "0.0.0.0/0"
+    tcp_options {
+      min = 30033
+      max = 30033
+    }
+  }
+}
+
+# Subnet
+resource "oci_core_subnet" "ts_subnet" {
+  compartment_id    = oci_identity_compartment.sandbox.id
+  vcn_id            = oci_core_vcn.main_vcn.id
+  cidr_block        = "10.0.174.0/28"
+  display_name      = "ts-subnet"
+  route_table_id    = oci_core_route_table.ts_rt.id
+  security_list_ids = [oci_core_security_list.ts_sl.id]
+}
